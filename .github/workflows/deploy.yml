@@ -20,9 +20,16 @@ jobs:
           git config --global user.email "github-actions@github.com"
           git config --global user.name "github-actions"
 
-          git clone https://prateek-singh24:$HF_TOKEN@huggingface.co/spaces/prateek-singh24/agentic-ai-factory-demo hf_space
+          rm -rf hf_space
 
-          rsync -av --exclude='.git' ./ hf_space/
+          git clone https://hf_user:$HF_TOKEN@huggingface.co/spaces/prateek-singh24/agentic-ai-factory-demo hf_space
+
+          rsync -av \
+            --exclude='.git' \
+            --exclude='hf_space' \
+            --exclude='__pycache__' \
+            --exclude='*.pyc' \
+            ./ hf_space/
 
           cd hf_space
 
