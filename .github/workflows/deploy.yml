@@ -17,12 +17,17 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo "HF_TOKEN is missing"
+            exit 1
+          fi
+
           git config --global user.email "github-actions@github.com"
           git config --global user.name "github-actions"
 
           rm -rf hf_space
 
-          git clone https://hf_user:$HF_TOKEN@huggingface.co/spaces/prateek-singh24/agentic-ai-factory-demo hf_space
+          git clone https://huggingface.co/spaces/prateek-singh24/agentic-ai-factory-demo hf_space
 
           rsync -av \
             --exclude='.git' \
@@ -33,8 +38,10 @@ jobs:
 
           cd hf_space
 
+          git remote set-url origin https://oauth2:$HF_TOKEN@huggingface.co/spaces/prateek-singh24/agentic-ai-factory-demo
+
           git add .
 
           git commit -m "Auto deploy from GitHub" || echo "No changes to commit"
 
-          git push
+          git push origin main
