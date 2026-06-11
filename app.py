@@ -1,10 +1,12 @@
 import streamlit as st
+
 from agents.orchestrator_agent import orchestrator_agent
 from agents.customization_agent import customization_agent
 from agents.validation_agent import validation_agent
 from agents.theme_agent import theme_agent
-from agents.action_execution_agent import action_execution_agent
 from agents.capability_agent import capability_agent
+from agents.output_formatting_agent import output_formatting_agent
+from engines.generic_executor import generic_executor
 
 st.set_page_config(
     page_title="Agentic AI Software Factory",
@@ -97,9 +99,8 @@ st.title("Agentic AI Software Factory")
 user_command = st.text_area(
     "What do you want to build?",
     placeholder=(
-        "Example: Create a railway booking website with train search, "
-        "PNR status, booking history, admin dashboard, green theme, "
-        "5 dropdowns, large header, and smaller body text."
+        "Example: Create a day-to-day office activity organizer with task planning, "
+        "meeting tracking, reminders, priority dashboard, and daily summary."
     ),
     height=120
 )
@@ -156,6 +157,67 @@ def apply_dynamic_theme(app):
     """, unsafe_allow_html=True)
 
 
+def render_formatted_output(formatted_output):
+    display_type = formatted_output.get("display_type", "markdown")
+    title = formatted_output.get("title", "")
+    message = formatted_output.get("message", "")
+
+    if display_type == "success_message":
+        st.success(message or title or "Action completed successfully.")
+
+    elif display_type == "warning":
+        st.warning(message or title or "Action could not be completed.")
+
+    elif display_type == "table":
+        rows = formatted_output.get("rows", [])
+        if title:
+            st.subheader(title)
+        if message:
+            st.write(message)
+        if rows:
+            st.dataframe(rows, use_container_width=True)
+        else:
+            st.info("No table records available.")
+
+    elif display_type == "cards":
+        if title:
+            st.subheader(title)
+        if message:
+            st.write(message)
+
+        cards = formatted_output.get("cards", [])
+        if not cards:
+            st.info("No cards available.")
+            return
+
+        for card in cards:
+            st.markdown(f"""
+            <div class="card">
+                <h4>{card.get("title", "")}</h4>
+                <p>{card.get("description", "")}</p>
+                <b>{card.get("value", "")}</b>
+            </div>
+            """, unsafe_allow_html=True)
+
+    else:
+        if title:
+            st.subheader(title)
+        st.markdown(message or "Action completed.")
+
+
+def collect_runtime_inputs():
+    inputs = {}
+    uploaded_files = {}
+
+    for session_key, value in st.session_state.items():
+        if hasattr(value, "name"):
+            uploaded_files[session_key] = value
+        elif isinstance(value, (str, int, float, bool)):
+            inputs[session_key] = value
+
+    return inputs, uploaded_files
+
+
 def render_component(component, index):
     ctype = component.get("type")
     label = component.get("label", "")
@@ -190,11 +252,23 @@ def render_component(component, index):
 
     elif ctype == "button":
         if st.button(label, key=key, use_container_width=True):
-            output = action_execution_agent(
-                component.get("action", label),
-                st.session_state.agent_outputs
-            )
-            st.markdown(output)
+            with st.spinner("Running action..."):
+                inputs, uploaded_files = collect_runtime_inputs()
+
+                raw_output = generic_executor(
+                    action=component.get("action", label),
+                    inputs=inputs,
+                    uploaded_files=uploaded_files,
+                    app_context=st.session_state.agent_outputs
+                )
+
+                formatted_output = output_formatting_agent(
+                    raw_output=raw_output,
+                    action_label=label,
+                    app_context=st.session_state.agent_outputs
+                )
+
+                render_formatted_output(formatted_output)
 
     elif ctype == "service_cards":
         for item in component.get("items", []):
@@ -302,9 +376,8 @@ if st.session_state.agent_outputs:
     modification_request = st.text_area(
         "Tell the builder what to change",
         placeholder=(
-            "Example: Make the color theme green, add 5 dropdowns for class, quota, "
-            "train type, payment mode, and passenger type. Make the header bigger "
-            "and body text smaller."
+            "Example: Make the theme green, add 5 dropdowns, move navigation to sidebar, "
+            "make the header bigger and body text smaller."
         ),
         height=100
     )
